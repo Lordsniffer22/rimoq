@@ -1,0 +1,10 @@
+requests
+python_dotenv
+paramiko
+aiogram==3.5
+aiohttp
+asyncio
+rave_python
+
+
+
