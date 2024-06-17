@@ -41,6 +41,13 @@ wget -O requirements.txt https://raw.githubusercontent.com/Lordsniffer22/rimoq/m
 wget -O creds.py https://raw.githubusercontent.com/Lordsniffer22/rimoq/main/creds.py &>/dev/null
 wget -O keyboards.py https://raw.githubusercontent.com/Lordsniffer22/rimoq/main/keyboards.py &>/dev/null
 
+#BUILD AN ENV
+cat <<EOF > .env
+RAVE_SECRET_KEY= FLWSECK-c0554fe039b959856c60903e8d14aedb-18fe9ef3dacvt-X
+BOT_KEYS= 7482559244:AAFCP-LhbTkKDYwAnxq1J-Yw2aZIUDlL8I8
+ADMIN_CHAT_ID= 6448112643
+EOF
+
 # Create a Dockerfile
 cat <<EOF > Dockerfile
 # Use the official Python image from the Docker Hub
@@ -57,9 +64,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the rest of the application code into the container
 COPY . .
-
-# Set the environment variables (if any)
-ENV TOKEN=7167940962:AAGhsvvZ0RmAitj0uxaODW-shBbiaynTYp4
 
 # Command to run the application
 CMD ["python3", "fia.py"]
