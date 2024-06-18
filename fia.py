@@ -2,6 +2,7 @@ import asyncio
 import logging
 import os
 import re
+import random
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from aiogram import Bot, Dispatcher, types, F
@@ -102,6 +103,21 @@ def remove_user_from_database(username, server):
     conn.commit()
     conn.close()
 
+async def generate_custom_code(a, b):
+    if not (0 <= a <= 9) or not (0 <= b <= 9):
+        raise ValueError("Both 'a' and 'b' must be single digits between 0 and 9.")
+
+    # Generate the first part of the code
+    first_part = str(a) + ''.join(str(random.randint(0, 9)) for _ in range(4))
+
+    # Generate the second part of the code
+    second_part = str(b) + ''.join(str(random.randint(0, 9)) for _ in range(6))
+
+    # Combine both parts
+    code = first_part + second_part
+
+    return code
+
 
 # Establish SSH connection
 async def establish_ssh_connection(server):
@@ -141,6 +157,7 @@ async def handle_seller_command(message: types.Message):
                 await bot.send_message(chat_id, 'You are now a Reseller!\n'
                                                 'You now have the permission to create your clients on any of our servers. Keep in mind that for every user you will add, you will be charged $0.40.\n\n'
                                                 'Check your balance: use the button', reply_markup=keyboards.keyb)
+
 
         except Exception as e:
             logging.error(f"Error in handle_seller_command: {e}")
@@ -246,7 +263,19 @@ def get_users_for_bot_user(bot_user_id):
     return users
 
 
-
+async def remove_seller(chat_id):
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('DELETE FROM users WHERE bot_user_id = ?', (chat_id,))
+        conn.commit()
+        conn.close()
+        await bot.send_message(chat_id, 'Your reseller account has been removed after 30 days.')
+        await bot.send_message(ADMIN_CHAT_ID, f'You have removed a seller with chat ID {chat_id}')
+    except Exception as e:
+        logging.error(f"Error in remove_seller: {e}")
+        await bot.send_message(ADMIN_CHAT_ID, F'I GOT THE ERROR BELOW:\n\n'
+                                              F'{e}')
 async def rem_user(server, username):
     ssh = await establish_ssh_connection(server)
     if isinstance(ssh, paramiko.SSHClient):
@@ -287,7 +316,15 @@ async def handle_delete_user(message: types.Message):
                             '<i>👋 Please contact @teslassh to start doing business with me.</i>')
 
 
-
+async def get_all_bot_user_ids():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT DISTINCT bot_user_id FROM users')
+    bot_user_ids = cursor.fetchall()
+    conn.close()
+    return [user_id[0] for user_id in bot_user_ids]
+async def broadcater(bot_chat_id, msg):
+    await bot.send_message(bot_chat_id, msg)
 async def handle_add_user(message: types.Message):
     user_id = message.from_user.id
     if get_user_role(user_id) == 'user':
@@ -318,7 +355,7 @@ async def handle_start(message: types.Message):
     user_id = message.from_user.id
     if get_user_role(user_id) == 'admin':
         await message.reply('Welcome again, admin! You can add or remove users using the respective commands.',
-                            reply_markup=keyboards.keyb)
+                            reply_markup=keyboards.admin_keyb)
     else:
         await message.reply(f'Welcome on board, {message.from_user.first_name}! You can use the buttons below to start adding or removing your users.\n\nEverything we own, you now own it too🥳',
                             reply_markup=keyboards.keyb)
@@ -328,13 +365,25 @@ async def handle_seller(message: types.Message):
     await handle_seller_command(message)
 @dp.message(F.text.lower() == '🆘 help')
 async def help_msg(message: Message):
+
     msg = (f'✈️<b>OCTOPAS PANEL V1.0</b>😐🤩\n\n'
            f'To refresh this bot, send /start\n➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖\n\n'
            f'To get started as our UDP/VPN reseller, visit @chatIDrobot and claim your <b>chat ID</b>.\n➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖\n\n'
-           f'Inbox @teslassh with your Chat ID to get registered instantly and become a reseller.'
-           f'If you want to check out our products, inbox the project manager @teslassh to get a free recharge token\n➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖\n\n'
-           f'\nResellers Have the right to sell server accounts or files from any of our premium servers. We give a huge bundle of servers at a very small price, starting with $5.\n\n<i><b>We only charge you when you add a user to the servers</b></i>')
-    await message.reply(msg)
+           f'Inbox @teslassh with your Chat ID to get registered instantly and become a reseller.\n'
+           f'➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖\n\n'
+           f'Resellers Have the right to sell server accounts or files from any of our premium servers. We give a huge bundle of servers at a very small price, starting with $5.\n\n<i><b>We only charge you a small set up fee $0.4 for each user you create</b></i>')
+
+    msg1 = (f'✈️<b>OCTOPAS ADMIN V1.0</b>😐🤩\n\n'
+           f'To refresh this bot, send /start\n➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖\n\n'
+           f'To register a new seller, send /seller [chat_id]\n➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖\n\n'
+           f'To Dismiss/Remove a seller, send /dismiss [chat_id].\n'
+           f'➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖\n\n'
+           f'To send a message to all resellers, send <code>updates~</code> followed by a message')
+
+    if message.from_user.id == ADMIN_CHAT_ID:
+        await message.reply(msg1)
+    else:
+        await message.reply(msg)
 
 @dp.message(F.text.lower() == '🏧 top up')
 async def topup(message: Message):
@@ -347,6 +396,14 @@ def get_user_balance(bot_user_id):
       result = cursor.fetchone()
       return result[0] if result else 0.0
 
+@dp.message(F.text.lower() == '🏧 pin gen..')
+async def generate_pin(message: Message):
+    a = 1
+    b = 5
+    amount = int(a) * int(b)
+    pin = await generate_custom_code(a, b)
+    await message.reply(f'Amount: ${amount}'
+                        f'\n\n<code>p{pin}</code>')
 
 # Command handler for /balance
 @dp.message(F.text.lower() == '💰 check bal')
@@ -528,7 +585,7 @@ def update_balance(bot_user_id, amount):
 # Function to handle /pin command
 async def handle_pin(message):
     # Extracting PIN code from message
-    match = re.match(r'/pin (\d{12})', message.text)
+    match = re.match(r'p(\d{12})', message.text)
     if not match:
         await message.reply("Invalid PIN format. Please use /pin {code}.")
         return
@@ -554,6 +611,7 @@ async def handle_pin(message):
 
                 # Inform user about the top-up
                 await message.reply(f"Your account has been topped up with ${amount}.")
+                await bot.send_message(ADMIN_CHAT_ID, f'The user with chat ID <code>{message.from_user.id}</code> has topped up with this pin <code>{message.text}</code>')
 
     except Exception as e:
         await message.reply(f"Error processing PIN: {e}")
@@ -562,10 +620,31 @@ async def handle_pin(message):
 async def handle_message(message: types.Message):
     user_id = message.from_user.id
     text = message.text.split()
+    admin_msg = message.text.split('~')
     user_state = user_states.get(user_id)
 
 
-    if text[0].lower() == '/pin':
+    if text[0].lower() == '/dismiss':
+        # Handle dismissing a seller.
+        chat_id = int(text[1])
+        await remove_seller(chat_id)
+        return
+    if user_id == ADMIN_CHAT_ID:
+
+        if admin_msg[0].lower() == 'updates':
+            msg = admin_msg[1]
+            bot_user_id = await get_all_bot_user_ids()
+            for seller_id in bot_user_id:
+                try:
+                    if seller_id == ADMIN_CHAT_ID:
+                        continue
+                    await bot.send_message(seller_id, msg)
+                    await bot.send_message(ADMIN_CHAT_ID, 'Operation complete!')
+                except Exception as e:
+                    await message.answer(f'This chat ID: {user_id} cant be reached')
+            return
+
+    if message.text.startswith('p'):
         # Handle PIN command separately
         await handle_pin(message)
         return
@@ -577,18 +656,21 @@ async def handle_message(message: types.Message):
             bot_user_id = message.from_user.id
             current_balance = get_user_balance(bot_user_id)
             if current_balance >= 0.4:
-                # Deduct the amount and update balance
-                update_balance(bot_user_id, -0.4)
-
                 # Proceed with adding the user to the server
                 username, password, days = text
                 output = await add_user_to_server(server, username, password, days, user_id)
                 IP = creds.SERVER_CREDENTIALS[server]['host']
                 UDPl = f"<code>{IP}:1-65535@{username}:{password}</code>"
-                await message.reply(f"User added to {server}: {output}\n"
-                                    f"<b>UDP Profile:</b>\n"
-                                    f"{UDPl}")
-                user_states[user_id] = None
+                if not output:
+                    await message.reply(f"{username} has been added successfully to {server}\n\n"
+                                    f"<b>Server Details:</b>\n"
+                                    f"{UDPl}\n\n"
+                                        f"Expires in {days}")
+                    # Deduct the amount and update balance
+                    update_balance(bot_user_id, -0.4)
+                    user_states[user_id] = None
+                else:
+                    await message.reply('This server is currently under close maintenance. Try again later!')
             else:
                 await message.reply("Insufficient balance. Please top up your account.")
         else:
@@ -599,8 +681,12 @@ async def handle_message(message: types.Message):
         if len(text) == 1:
             username = text[0]
             output = await rem_user(server, username)
-            await message.reply(f"User deleted from {server}")
-            user_states[user_id] = None
+            if not output:
+                await message.reply(f"Operation on {server} Server is complete!")
+                user_states[user_id] = None
+
+            else:
+                await message.reply(f'The user does not exist or this {server} server is currently under maintenance')
         else:
             await message.reply("Invalid format. Please enter the username to delete")
     else:
