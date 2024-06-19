@@ -154,9 +154,12 @@ async def handle_seller_command(message: types.Message):
                 conn.commit()
                 conn.close()
                 await message.reply(f'A new seller with chat ID <code>{chat_id}</code> has been registered.')
-                await bot.send_message(chat_id, 'You are now a Reseller!\n'
-                                                'You now have the permission to create your clients on any of our servers. Keep in mind that for every user you will add, you will be charged $0.40.\n\n'
-                                                'Check your balance: use the button', reply_markup=keyboards.keyb)
+                await bot.send_message(chat_id, f'🥳You are now a Reseller!\n'
+                                                f'➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖\n\n'
+                                                '✨You now have the permission to create your clients on any of our servers. \n\n'
+                                                '✨Keep in mind that for every user you will add, you will be charged $0.40.\n'
+                                                '➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖\n\n'
+                                                '<b><i>  ©UDPCUSTOM (All rights Reserved)\n</i></b>', reply_markup=keyboards.keyb)
 
 
         except Exception as e:
@@ -262,6 +265,67 @@ def get_users_for_bot_user(bot_user_id):
     conn.close()
     return users
 
+# DANGER ZONE
+
+# Function to get all users irrespective of the seller
+def get_all_users():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT id, username, server, days, date_added FROM users')
+    users = cursor.fetchall()
+    conn.close()
+    return users
+
+
+# Function to delete user from the database
+def delete_user_from_db(username, server):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    #if not (username == 'admin' and server == 'global'):
+    cursor.execute('DELETE FROM users WHERE username = ? AND server = ?', (username, server))
+    conn.commit()
+    conn.close()
+
+
+
+# Function to delete user from the server
+async def delete_user_from_server(server, username):
+    # Replace with your server credentials
+    if server not in creds.SERVER_CREDENTIALS:
+        return False
+
+    server_info = creds.SERVER_CREDENTIALS[server]
+
+    ssh = paramiko.SSHClient()
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    ssh.connect(server_info['host'], username=server_info['username'], password=server_info['password'])
+
+    stdin, stdout, stderr = ssh.exec_command(f'userdel -r {username}')
+    exit_status = stdout.channel.recv_exit_status()
+
+    ssh.close()
+    return exit_status == 0
+
+
+# Scheduled task to check and delete expired users
+async def check_and_delete_expired_users():
+    while True:
+        users = get_all_users()
+        for user in users:
+            user_id, username, server, days, date_added = user
+            date_added = datetime.strptime(date_added, '%Y-%m-%d %H:%M:%S')
+            expiration_date = date_added + timedelta(days=days)
+            if datetime.now() > expiration_date:
+                delete_user_from_db(username, server)
+                await delete_user_from_server(server, username)
+                print(f"Deleted expired user: {username} from server: {server}")
+        await asyncio.sleep(3)  # Check every hour
+
+
+
+
+
+
 
 async def remove_seller(chat_id):
     try:
@@ -353,12 +417,24 @@ async def handle_users_command(message: types.Message):
 @dp.message(Command('start'))
 async def handle_start(message: types.Message):
     user_id = message.from_user.id
-    if get_user_role(user_id) == 'admin':
+    if get_user_role(user_id) == 'admin' or user_id == ADMIN_CHAT_ID:
         await message.reply('Welcome again, admin! You can add or remove users using the respective commands.',
                             reply_markup=keyboards.admin_keyb)
+    elif get_user_role(user_id) == 'user':
+        await message.reply(
+            f'Welcome on board, {message.from_user.first_name}! You can use the buttons below to start adding or removing your users.\n\nEverything we own, you now own it too🥳',
+            reply_markup=keyboards.keyb)
     else:
-        await message.reply(f'Welcome on board, {message.from_user.first_name}! You can use the buttons below to start adding or removing your users.\n\nEverything we own, you now own it too🥳',
-                            reply_markup=keyboards.keyb)
+        welc = (f"👐Hey, <b>{message.from_user.first_name}</b>!\n\n"
+                f"👩‍🦰Have we met before? Looks like this is your national ID\n"
+                f"➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖\n\n"
+                f"<b>Your Name:</b>  {message.from_user.first_name}\n"
+                f"<b>Username:</b>   @{message.from_user.username}\n"
+                f"<b>Chat ID:</b>      <code>{message.from_user.id}</code>\n"
+                f"➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖\n\n"
+                f"<i>Send that chat ID to the admin for him to activate your reseller partnership</i>")
+        await message.reply(welc)
+
 
 @dp.message(Command('seller'))
 async def handle_seller(message: types.Message):
@@ -691,6 +767,10 @@ async def handle_message(message: types.Message):
             await message.reply("Invalid format. Please enter the username to delete")
     else:
             await message.reply("Unknown command or invalid input.")
+
+# On startup, start the scheduled task
+   # while asyncio:
+    #    await check_and_delete_expired_users()
 
 
 if __name__ == '__main__':
