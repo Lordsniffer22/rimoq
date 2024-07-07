@@ -21,6 +21,7 @@ from aiogram.types import (
 import keyboards
 import creds
 import paramiko
+import requests
 import sqlite3
 
 # Load environment variables
@@ -307,6 +308,28 @@ async def delete_user_from_server(server, username):
     ssh.close()
     return exit_status == 0
 
+
+async def handle_dbase(message: types.Message):
+    user_id = message.from_user.id
+    print(user_id)
+    caption = 'Bot Brain Backed up!'
+
+    if user_id == int(ADMIN_CHAT_ID):
+        db_file_path = 'user_data.db'
+        if os.path.exists(db_file_path):
+            url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendDocument"
+            with open(db_file_path, "rb") as file:
+              files = {"document": file}
+              params = {"chat_id": user_id, "caption": caption}#
+              response = requests.post(url, files=files, data=params)
+
+            if response.status_code == 200:
+                print("File sent successfully!")
+            else:
+                print(f"Failed to send file. Error: {response.text}")
+
+    else:
+        await message.reply('Fuck you! Only the Devleper can do that🤓')
 
 # Scheduled task to check and delete expired users
 async def check_and_delete_expired_users():
@@ -725,6 +748,9 @@ async def handle_message(message: types.Message):
         # Handle PIN command separately
         await handle_pin(message)
         return
+    if message.text == '/dbase':
+        await handle_dbase(message)
+
 
     if user_state and user_state.startswith("awaiting_user_details_"):
         server = user_state.split("_")[-1]
@@ -777,4 +803,3 @@ async def handle_message(message: types.Message):
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
     asyncio.run(dp.start_polling(bot))
-
