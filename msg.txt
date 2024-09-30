@@ -18,7 +18,21 @@ We offer a variety of Payment methods, including:
 
 
 ## Why adding the bot as admin in my channel?
-I DONT KNOW BRO
+In order that we deliver ads and important information about your account to you, adding the bot to the channel as admin is so crucial. We only use the bot to send ads to the channel after getting permission from you.
+
+To add the bot as admin in your channel, you need to be the main admin of that channel.
+
+- Click your channel name and select "Administrators
+
+- Add Admin
+
+- Now search for @adsfybot
+
+- Give "Can Post Messages" Privillage.
+
+--> You are now good to go!
+
+
 ## Why was my channel Rejected ?
 There are different reasons why your channel might have gotten rejected. Here is a summary of the most common reasons:
 
